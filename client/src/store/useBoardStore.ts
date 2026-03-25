@@ -91,13 +91,31 @@ export const useBoardStore = create<BoardState>((set, get) => ({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(taskData)
             });
+
+            if (!res.ok) {
+                console.error("Failed to create task:", res.status);
+                return;
+            }
+
             const newTask = await res.json();
 
+            // Ensure task has required fields
+            if (!newTask.id) {
+                console.error("Invalid task response:", newTask);
+                return;
+            }
+
+            // Add boardId if missing (default to board-1)
+            const taskWithBoard = {
+                ...newTask,
+                boardId: newTask.boardId || 'board-1'
+            };
+
             set(state => {
-                if (state.tasks.some(t => t.id === newTask.id)) {
+                if (state.tasks.some(t => t.id === taskWithBoard.id)) {
                     return state;
                 }
-                return { tasks: [...state.tasks, newTask] };
+                return { tasks: [...state.tasks, taskWithBoard] };
             });
         } catch (e) {
             console.error("Failed to create task", e);
@@ -163,11 +181,18 @@ socket.on('task:moved', (updatedTask: any) => {
 });
 
 socket.on('task:created', (newTask: any) => {
+    if (!newTask.id) return;
+
+    const taskWithBoard = {
+        ...newTask,
+        boardId: newTask.boardId || 'board-1'
+    };
+
     useBoardStore.setState((state) => {
-        if (state.tasks.some(t => t.id === newTask.id)) {
+        if (state.tasks.some(t => t.id === taskWithBoard.id)) {
             return state;
         }
-        return { tasks: [...state.tasks, newTask] };
+        return { tasks: [...state.tasks, taskWithBoard] };
     });
 });
 
