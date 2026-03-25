@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskPriority {
+  High    // Mapped from P0/P1
+  Medium  // Mapped from P2
+  Low     // Mapped from P3 
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String?   @map("password_hash") // Optional for MVP if just mocking auth
+  name          String
+  avatarUrl     String?   @map("avatar_url")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  createdBoards Board[]     @relation("BoardOwner")
+  tasks         Task[]      @relation("TaskAssignees")
+  comments      Comment[]
+
+  @@map("users")
+}
+
+model Board {
+  id          String   @id @default(uuid())
+  title       String
+  ownerId     String   @map("owner_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  owner       User          @relation("BoardOwner", fields: [ownerId], references: [id])
+  columns     BoardColumn[]
+  
+  @@map("boards")
+}
+
+model BoardColumn {
+  id        String   @id @default(uuid())
+  boardId   String   @map("board_id")
+  title     String
+  wipLimit  Int?     @map("wip_limit")
+  position  Float    
+  
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+
+  @@index([boardId, position])
+  @@map("columns")
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  columnId    String   @map("column_id")
+  title       String
+  priority    TaskPriority @default(Medium)
+  position    Float
+  dueDate     String?   @map("due_date") // String for flexibility "Tomorrow" vs Date
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  column      BoardColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  assignees   User[]      @relation("TaskAssignees")
+  comments    Comment[]
+  tags        Tag[]
+
+  @@index([columnId, position])
+  @@map("tasks")
+}
+
+model Tag {
+  id      String @id @default(uuid())
+  name    String
+  taskId  String @map("task_id")
+  
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  @@map("tags")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  userId    String   @map("user_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("comments")
+}
